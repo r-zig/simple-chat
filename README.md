@@ -69,3 +69,12 @@ without error, and is free of clippy errors.
 send a message to the server from the client. Make sure that niether the server
 or client exit with a failure. This action should be run anytime new code
 is pushed to a branch or landed on the main branch.
+
+## Getting Started
+
+### 1. Install Git Pre-Commit Hook
+
+To ensure all code is formatted, compiles correctly, and passes Clippy checks before committing, run the following script once after cloning the repository:
+
+```bash
+bash scripts/install-hooks.sh
