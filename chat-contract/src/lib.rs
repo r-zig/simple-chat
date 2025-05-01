@@ -7,8 +7,6 @@ use chat::Header;
 pub use prost_types::Timestamp;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
-
-const DEFAULT_ROOM: &str = "main";
 pub mod builders;
 
 /// Create a new Header with current timestamp and a random message ID

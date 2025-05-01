@@ -1,7 +1,9 @@
 use prost_types::Timestamp;
 use uuid::Uuid;
 
-use crate::{chat::Header, current_timestamp, DEFAULT_ROOM};
+use crate::{chat::Header, current_timestamp};
+
+const DEFAULT_ROOM: &str = "main";
 
 /// A builder for creating [`Header`] messages with optional defaults.
 ///
