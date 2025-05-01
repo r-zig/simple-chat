@@ -2,7 +2,7 @@ use prost_types::Timestamp;
 use uuid::Uuid;
 
 use crate::{
-    chat::{ChatMessage, Header, Join, Leave},
+    chat::{ChatMessage, ErrorCode, Header, Join, Leave},
     current_timestamp,
 };
 
@@ -69,18 +69,18 @@ impl HeaderBuilder {
     }
 
     /// Strict build: all fields must be provided.
-    pub fn build(self) -> Result<Header, &'static str> {
+    pub fn build(self) -> Result<Header, ErrorCode> {
         if self.username.as_ref().map_or(true, |s| s.trim().is_empty()) {
-            return Err("username is required");
+            return Err(ErrorCode::UsernameRequired);
         }
         if self.room.as_ref().map_or(true, |s| s.trim().is_empty()) {
-            return Err("room is required");
+            return Err(ErrorCode::RoomRequired);
         }
         if self.message_id.is_none() {
-            return Err("message_id is required");
+            return Err(ErrorCode::MessageIdRequired);
         }
         if self.timestamp.is_none() {
-            return Err("timestamp is required");
+            return Err(ErrorCode::TimestampRequired);
         }
 
         Ok(Header {
@@ -120,7 +120,7 @@ impl Default for HeaderBuilder {
 /// Builder for [`Join`] message.
 ///
 /// This builder allows you to create a `Join` message by specifying a username,
-/// and optionally a room. If no room is specified, it defaults to `"main"`.
+/// and optionally a room. If no room is specified, it defaults to `"custom_room"`.
 ///
 /// The `build()` method will automatically fill in the `message_id` and `timestamp`.
 ///
@@ -162,10 +162,10 @@ impl JoinBuilder {
         self
     }
 
-    pub fn build(self) -> Result<Join, &'static str> {
+    pub fn build(self) -> Result<Join, ErrorCode> {
         let header = Header {
-            username: self.username.ok_or("Join requires username")?,
-            room: self.room.unwrap_or_else(|| DEFAULT_ROOM.to_string()),
+            username: self.username.ok_or(ErrorCode::UsernameRequired)?,
+            room: self.room.ok_or(ErrorCode::RoomRequired)?,
             message_id: Uuid::new_v4().to_string(),
             timestamp: Some(current_timestamp()),
         };
@@ -184,7 +184,7 @@ impl Default for JoinBuilder {
 /// Builder for [`Leave`] message.
 ///
 /// This builder allows you to create a `Leave` message by specifying a username,
-/// and optionally a room. If no room is specified, it defaults to "main".
+/// and optionally a room. If no room is specified, it defaults to "custom_room".
 ///
 /// The `build()` method will automatically fill in the `message_id` and `timestamp`.
 ///
@@ -226,10 +226,10 @@ impl LeaveBuilder {
         self
     }
 
-    pub fn build(self) -> Result<Leave, &'static str> {
+    pub fn build(self) -> Result<Leave, ErrorCode> {
         let header = Header {
-            username: self.username.ok_or("Leave requires username")?,
-            room: self.room.unwrap_or_else(|| DEFAULT_ROOM.to_string()),
+            username: self.username.ok_or(ErrorCode::UsernameRequired)?,
+            room: self.room.ok_or(ErrorCode::RoomRequired)?,
             message_id: Uuid::new_v4().to_string(),
             timestamp: Some(current_timestamp()),
         };
@@ -247,7 +247,7 @@ impl Default for LeaveBuilder {
 /// Builder for [`ChatMessage`] message.
 ///
 /// This builder allows you to create a `ChatMessage` by specifying a username and content,
-/// and optionally a room. If no room is specified, it defaults to "main".
+/// and optionally a room. If no room is specified, it defaults to "custom_room".
 ///
 /// The `build()` method will automatically fill in the `message_id` and `timestamp`.
 ///
@@ -298,15 +298,15 @@ impl ChatMessageBuilder {
         self
     }
 
-    pub fn build(self) -> Result<ChatMessage, &'static str> {
+    pub fn build(self) -> Result<ChatMessage, ErrorCode> {
         Ok(ChatMessage {
             header: Some(Header {
-                username: self.username.ok_or("ChatMessage requires username")?,
-                room: self.room.unwrap_or_else(|| DEFAULT_ROOM.to_string()),
+                username: self.username.ok_or(ErrorCode::UsernameRequired)?,
+                room: self.room.ok_or(ErrorCode::RoomRequired)?,
                 message_id: Uuid::new_v4().to_string(),
                 timestamp: Some(current_timestamp()),
             }),
-            content: self.content.ok_or("ChatMessage requires content")?,
+            content: self.content.ok_or(ErrorCode::ContentRequired)?,
         })
     }
 }
@@ -326,14 +326,14 @@ mod tests {
     fn build_header_strict_success() {
         let header = HeaderBuilder::new()
             .username("r-zig")
-            .room("main")
+            .room("custom_room")
             .message_id("custom-id-123")
             .timestamp(current_timestamp())
             .build()
             .expect("should build successfully");
 
         assert_eq!(header.username, "r-zig");
-        assert_eq!(header.room, "main");
+        assert_eq!(header.room, "custom_room");
         assert_eq!(header.message_id, "custom-id-123");
         assert!(header.timestamp.is_some());
     }
@@ -341,12 +341,12 @@ mod tests {
     #[test]
     fn build_header_strict_missing_username() {
         let result = HeaderBuilder::new()
-            .room("main")
+            .room("custom_room")
             .message_id("id")
             .timestamp(current_timestamp())
             .build();
 
-        assert_eq!(result, Err("username is required"));
+        assert_eq!(result, Err(ErrorCode::UsernameRequired));
     }
 
     #[test]
@@ -357,29 +357,29 @@ mod tests {
             .timestamp(current_timestamp())
             .build();
 
-        assert_eq!(result, Err("room is required"));
+        assert_eq!(result, Err(ErrorCode::RoomRequired));
     }
 
     #[test]
     fn build_header_strict_missing_message_id() {
         let result = HeaderBuilder::new()
             .username("r-zig")
-            .room("main")
+            .room("custom_room")
             .timestamp(current_timestamp())
             .build();
 
-        assert_eq!(result, Err("message_id is required"));
+        assert_eq!(result, Err(ErrorCode::MessageIdRequired));
     }
 
     #[test]
     fn build_header_strict_missing_timestamp() {
         let result = HeaderBuilder::new()
             .username("r-zig")
-            .room("main")
+            .room("custom_room")
             .message_id("id")
             .build();
 
-        assert_eq!(result, Err("timestamp is required"));
+        assert_eq!(result, Err(ErrorCode::TimestampRequired));
     }
 
     #[test]
@@ -416,11 +416,11 @@ mod tests {
     fn join_builder_sets_username_and_room() {
         let join = JoinBuilder::new()
             .username("r-zig")
-            .room("main")
+            .room("custom_room")
             .build()
             .unwrap();
         assert_eq!(join.header.as_ref().unwrap().username, "r-zig");
-        assert_eq!(join.header.as_ref().unwrap().room, "main");
+        assert_eq!(join.header.as_ref().unwrap().room, "custom_room");
     }
 
     #[test]
@@ -443,6 +443,6 @@ mod tests {
     #[test]
     fn chat_message_missing_content() {
         let result = ChatMessageBuilder::new().username("r-zig").build();
-        assert_eq!(result, Err("ChatMessage requires content"));
+        assert_eq!(result, Err(ErrorCode::ContentRequired));
     }
 }

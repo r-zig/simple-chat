@@ -69,7 +69,7 @@ enum ErrorCode {
     UNKNOWN_ERROR = 0;
   
     // Client sent join with empty username
-    EMPTY_USERNAME = 1;
+    USERNAME_REQUIRED = 1;
 
     // Client tried to join with a name that's in use
     USERNAME_ALREADY_TAKEN = 2;
@@ -77,8 +77,20 @@ enum ErrorCode {
     // Client sent chat/leave but hasn't joined yet
     USER_NOT_REGISTERED = 3;
   
-    // (Optional future codes)
-    ROOM_NOT_FOUND = 101;
+    // Trying to send message without room
+    ROOM_REQUIRED = 10;
+    
+    // Trying to send message with non existing room
+    ROOM_NOT_FOUND = 11;
+
+    // Trying to send message without content
+    CONTENT_REQUIRED = 20;
+
+    // Trying to send message without message id
+    MESSAGE_ID_REQUIRED = 30;
+    
+    // Message must contain timestamp
+    TIMESTAMP_REQUIRED = 40;
 }
 
 //
