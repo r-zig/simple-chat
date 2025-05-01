@@ -78,3 +78,17 @@ To ensure all code is formatted, compiles correctly, and passes Clippy checks be
 
 ```bash
 bash scripts/install-hooks.sh
+```
+### 2. Install Protocol Buffers (protoc)
+This project uses Protocol Buffers (Protobuf) for serializing structured data. In order to compile .proto files, you need to have the protoc compiler installed.
+
+Follow the instructions for your operating system here:
+https://protobuf.dev/installation/
+
+Make sure protoc is available in your PATH:
+```bash
+protoc --version
+```
+Should output something like: libprotoc 3.21.12
+
+Note: Some components of this project might auto-generate code from .proto files during the build process. Ensure protoc is installed and accessible before building or running the project.
