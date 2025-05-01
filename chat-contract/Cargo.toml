@@ -1,0 +1,13 @@
+[package]
+name = "chat-contract"
+version = "0.1.0"
+edition = "2021"
+authors = ["Ron Zigelman <roniz.net@gmail.com>"]
+
+[dependencies]
+prost = "0.13.5"
+prost-types = "0.13.5"
+uuid = { version = "1.16.0", features = ["v4"] }
+
+[build-dependencies]
+prost-build = "0.13.5"

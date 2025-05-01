@@ -4,5 +4,6 @@ members = [
     "server",
     "server-cli",
     "client",
-    "client-cli"
+    "client-cli",
+    "chat-contract"
 ]

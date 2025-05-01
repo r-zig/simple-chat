@@ -1,0 +1,122 @@
+syntax = "proto3";
+
+package chat;
+
+import "google/protobuf/timestamp.proto";
+
+//
+// Represents the type of client message that caused an error.
+//
+enum MessageType {
+    // Default value if the message type is unknown.
+    UNKNOWN = 0;
+    
+    // Client attempted to join a chat room.
+    JOIN = 1;
+    
+    // Client attempted to leave a chat room.
+    LEAVE = 2;
+    
+    // Client attempted to send a chat message.
+    CHAT = 3;
+}
+
+//
+// Shared metadata included in all messages sent from the client.
+//
+message Header {
+    // Unique ID for matching messages and errors.
+    string message_id = 1;
+
+    // The unique username of the client.
+    string username = 2;
+    
+    // The time the message was sent.
+    google.protobuf.Timestamp timestamp = 3;
+    
+    // The name of the chat room (used for routing).
+    string room = 4;
+}
+
+//
+// Message sent by the client to join a chat room.
+//
+message Join {
+    // Includes the username and target room.
+    Header header = 1;
+}
+
+//
+// Message sent by the client to leave a chat room.
+//
+message Leave {
+    // Includes the username and target room.
+    Header header = 1;
+}
+
+//
+// Message sent by the client to broadcast a message to a chat room.
+//
+message ChatMessage {
+    // Includes the username and target room.
+    Header header = 1;
+    
+    // The actual content of the chat message.
+    string content = 2;
+}
+
+enum ErrorCode {
+    UNKNOWN_ERROR = 0;
+  
+    // Client sent join with empty username
+    EMPTY_USERNAME = 1;
+
+    // Client tried to join with a name that's in use
+    USERNAME_ALREADY_TAKEN = 2;
+  
+    // Client sent chat/leave but hasn't joined yet
+    USER_NOT_REGISTERED = 3;
+  
+    // (Optional future codes)
+    ROOM_NOT_FOUND = 101;
+}
+
+//
+// Message sent from the server to indicate an error with a client request.
+//
+message Error {
+    // The unique ID of this error message.
+    string message_id = 1;
+
+    // The message ID of the original client message that this error relates to.
+    string related_message_id = 2;
+
+    // The type of message that triggered the error (e.g., JOIN, CHAT).
+    MessageType type = 3;
+
+    // Error codes
+    ErrorCode code = 4;
+}
+
+//
+// Top-level message for all client→server communications.
+//
+message ClientMessage {
+    // The type of message the client is sending.
+    oneof payload {
+        Join join = 1;
+        Leave leave = 2;
+        ChatMessage chat = 3;
+    }
+}
+
+//
+// Top-level message for all server→client communications.
+//
+message ServerMessage {
+    // A message from another client (or self) within the same room.
+    ChatMessage chat = 1;
+
+    // An error message sent only to the client that caused it.
+    Error error = 2;
+}
