@@ -1,7 +1,10 @@
 use prost_types::Timestamp;
 use uuid::Uuid;
 
-use crate::{chat::Header, current_timestamp};
+use crate::{
+    chat::{ChatMessage, Header, Join, Leave},
+    current_timestamp,
+};
 
 const DEFAULT_ROOM: &str = "main";
 
@@ -114,6 +117,206 @@ impl Default for HeaderBuilder {
     }
 }
 
+/// Builder for [`Join`] message.
+///
+/// This builder allows you to create a `Join` message by specifying a username,
+/// and optionally a room. If no room is specified, it defaults to `"main"`.
+///
+/// The `build()` method will automatically fill in the `message_id` and `timestamp`.
+///
+/// # Example (with default room)
+/// ```
+/// use chat_contract::builders::JoinBuilder;
+///
+/// let join = JoinBuilder::new()
+///     .username("r-zig")
+///     .build()
+///     .unwrap();
+///
+/// let header = join.header.unwrap();
+/// assert_eq!(header.username, "r-zig");
+/// assert_eq!(header.room, "main");
+/// assert!(!header.message_id.is_empty());
+/// assert!(header.timestamp.is_some());
+/// ```
+pub struct JoinBuilder {
+    username: Option<String>,
+    room: Option<String>,
+}
+
+impl JoinBuilder {
+    pub fn new() -> Self {
+        Self {
+            username: None,
+            room: Some(DEFAULT_ROOM.to_string()),
+        }
+    }
+
+    pub fn username(mut self, username: impl Into<String>) -> Self {
+        self.username = Some(username.into());
+        self
+    }
+
+    pub fn room(mut self, room: impl Into<String>) -> Self {
+        self.room = Some(room.into());
+        self
+    }
+
+    pub fn build(self) -> Result<Join, &'static str> {
+        let header = Header {
+            username: self.username.ok_or("Join requires username")?,
+            room: self.room.unwrap_or_else(|| DEFAULT_ROOM.to_string()),
+            message_id: Uuid::new_v4().to_string(),
+            timestamp: Some(current_timestamp()),
+        };
+        Ok(Join {
+            header: Some(header),
+        })
+    }
+}
+
+impl Default for JoinBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Builder for [`Leave`] message.
+///
+/// This builder allows you to create a `Leave` message by specifying a username,
+/// and optionally a room. If no room is specified, it defaults to "main".
+///
+/// The `build()` method will automatically fill in the `message_id` and `timestamp`.
+///
+/// # Example (with default room)
+/// ```
+/// use chat_contract::builders::LeaveBuilder;
+///
+/// let leave = LeaveBuilder::new()
+///     .username("r-zig")
+///     .build()
+///     .unwrap();
+///
+/// let header = leave.header.unwrap();
+/// assert_eq!(header.username, "r-zig");
+/// assert_eq!(header.room, "main");
+/// assert!(!header.message_id.is_empty());
+/// assert!(header.timestamp.is_some());
+/// ```
+pub struct LeaveBuilder {
+    username: Option<String>,
+    room: Option<String>,
+}
+
+impl LeaveBuilder {
+    pub fn new() -> Self {
+        Self {
+            username: None,
+            room: Some(DEFAULT_ROOM.to_string()),
+        }
+    }
+
+    pub fn username(mut self, username: impl Into<String>) -> Self {
+        self.username = Some(username.into());
+        self
+    }
+
+    pub fn room(mut self, room: impl Into<String>) -> Self {
+        self.room = Some(room.into());
+        self
+    }
+
+    pub fn build(self) -> Result<Leave, &'static str> {
+        let header = Header {
+            username: self.username.ok_or("Leave requires username")?,
+            room: self.room.unwrap_or_else(|| DEFAULT_ROOM.to_string()),
+            message_id: Uuid::new_v4().to_string(),
+            timestamp: Some(current_timestamp()),
+        };
+        Ok(Leave {
+            header: Some(header),
+        })
+    }
+}
+
+impl Default for LeaveBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+/// Builder for [`ChatMessage`] message.
+///
+/// This builder allows you to create a `ChatMessage` by specifying a username and content,
+/// and optionally a room. If no room is specified, it defaults to "main".
+///
+/// The `build()` method will automatically fill in the `message_id` and `timestamp`.
+///
+/// # Example (with default room)
+/// ```
+/// use chat_contract::builders::ChatMessageBuilder;
+///
+/// let chat = ChatMessageBuilder::new()
+///     .username("r-zig")
+///     .content("Hello")
+///     .build()
+///     .unwrap();
+///
+/// let header = chat.header.unwrap();
+/// assert_eq!(header.username, "r-zig");
+/// assert_eq!(header.room, "main");
+/// assert!(header.timestamp.is_some());
+/// assert!(!header.message_id.is_empty());
+/// assert_eq!(chat.content, "Hello");
+/// ```
+pub struct ChatMessageBuilder {
+    username: Option<String>,
+    room: Option<String>,
+    content: Option<String>,
+}
+
+impl ChatMessageBuilder {
+    pub fn new() -> Self {
+        Self {
+            username: None,
+            room: Some(DEFAULT_ROOM.to_string()),
+            content: None,
+        }
+    }
+
+    pub fn username(mut self, username: impl Into<String>) -> Self {
+        self.username = Some(username.into());
+        self
+    }
+
+    pub fn room(mut self, room: impl Into<String>) -> Self {
+        self.room = Some(room.into());
+        self
+    }
+
+    pub fn content(mut self, content: impl Into<String>) -> Self {
+        self.content = Some(content.into());
+        self
+    }
+
+    pub fn build(self) -> Result<ChatMessage, &'static str> {
+        Ok(ChatMessage {
+            header: Some(Header {
+                username: self.username.ok_or("ChatMessage requires username")?,
+                room: self.room.unwrap_or_else(|| DEFAULT_ROOM.to_string()),
+                message_id: Uuid::new_v4().to_string(),
+                timestamp: Some(current_timestamp()),
+            }),
+            content: self.content.ok_or("ChatMessage requires content")?,
+        })
+    }
+}
+
+impl Default for ChatMessageBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::current_timestamp;
@@ -188,7 +391,7 @@ mod tests {
             .expect("should build successfully");
 
         assert_eq!(header.username, "r-zig");
-        assert_eq!(header.room, "main");
+        assert_eq!(header.room, DEFAULT_ROOM);
         assert!(header.message_id.len() > 10);
         assert!(header.timestamp.is_some());
     }
@@ -207,5 +410,39 @@ mod tests {
         let result = HeaderBuilder::new().username("r-zig").build_with_defaults();
 
         assert_eq!(result, Err("room is required"));
+    }
+
+    #[test]
+    fn join_builder_sets_username_and_room() {
+        let join = JoinBuilder::new()
+            .username("r-zig")
+            .room("main")
+            .build()
+            .unwrap();
+        assert_eq!(join.header.as_ref().unwrap().username, "r-zig");
+        assert_eq!(join.header.as_ref().unwrap().room, "main");
+    }
+
+    #[test]
+    fn leave_builder_default_room() {
+        let leave = LeaveBuilder::new().username("r-zig").build().unwrap();
+        assert_eq!(leave.header.as_ref().unwrap().room, DEFAULT_ROOM);
+    }
+
+    #[test]
+    fn chat_message_builder_success() {
+        let chat = ChatMessageBuilder::new()
+            .username("r-zig")
+            .content("Hello")
+            .build()
+            .unwrap();
+        assert_eq!(chat.content, "Hello");
+        assert_eq!(chat.header.as_ref().unwrap().room, DEFAULT_ROOM);
+    }
+
+    #[test]
+    fn chat_message_missing_content() {
+        let result = ChatMessageBuilder::new().username("r-zig").build();
+        assert_eq!(result, Err("ChatMessage requires content"));
     }
 }
