@@ -130,6 +130,7 @@ impl Default for HeaderBuilder {
 ///
 /// let join = JoinBuilder::new()
 ///     .username("r-zig")
+///     .with_default_room()
 ///     .build()
 ///     .unwrap();
 ///
@@ -140,35 +141,37 @@ impl Default for HeaderBuilder {
 /// assert!(header.timestamp.is_some());
 /// ```
 pub struct JoinBuilder {
-    username: Option<String>,
-    room: Option<String>,
+    header_builder: HeaderBuilder,
 }
 
 impl JoinBuilder {
     pub fn new() -> Self {
         Self {
-            username: None,
-            room: Some(DEFAULT_ROOM.to_string()),
+            header_builder: HeaderBuilder::new(),
         }
     }
 
     pub fn username(mut self, username: impl Into<String>) -> Self {
-        self.username = Some(username.into());
+        self.header_builder = self.header_builder.username(username.into());
         self
     }
 
     pub fn room(mut self, room: impl Into<String>) -> Self {
-        self.room = Some(room.into());
+        self.header_builder = self.header_builder.room(room.into());
+        self
+    }
+
+    pub fn with_default_room(mut self) -> Self {
+        self.header_builder = self.header_builder.with_default_room();
         self
     }
 
     pub fn build(self) -> Result<Join, ErrorCode> {
-        let header = Header {
-            username: self.username.ok_or(ErrorCode::UsernameRequired)?,
-            room: self.room.ok_or(ErrorCode::RoomRequired)?,
-            message_id: Uuid::new_v4().to_string(),
-            timestamp: Some(current_timestamp()),
-        };
+        let header = self
+            .header_builder
+            .message_id(Uuid::new_v4().to_string())
+            .timestamp(current_timestamp())
+            .build()?;
         Ok(Join {
             header: Some(header),
         })
@@ -194,6 +197,7 @@ impl Default for JoinBuilder {
 ///
 /// let leave = LeaveBuilder::new()
 ///     .username("r-zig")
+///     .with_default_room()
 ///     .build()
 ///     .unwrap();
 ///
@@ -204,35 +208,37 @@ impl Default for JoinBuilder {
 /// assert!(header.timestamp.is_some());
 /// ```
 pub struct LeaveBuilder {
-    username: Option<String>,
-    room: Option<String>,
+    header_builder: HeaderBuilder,
 }
 
 impl LeaveBuilder {
     pub fn new() -> Self {
         Self {
-            username: None,
-            room: Some(DEFAULT_ROOM.to_string()),
+            header_builder: HeaderBuilder::new(),
         }
     }
 
     pub fn username(mut self, username: impl Into<String>) -> Self {
-        self.username = Some(username.into());
+        self.header_builder = self.header_builder.username(username.into());
         self
     }
 
     pub fn room(mut self, room: impl Into<String>) -> Self {
-        self.room = Some(room.into());
+        self.header_builder = self.header_builder.username(room.into());
+        self
+    }
+
+    pub fn with_default_room(mut self) -> Self {
+        self.header_builder = self.header_builder.with_default_room();
         self
     }
 
     pub fn build(self) -> Result<Leave, ErrorCode> {
-        let header = Header {
-            username: self.username.ok_or(ErrorCode::UsernameRequired)?,
-            room: self.room.ok_or(ErrorCode::RoomRequired)?,
-            message_id: Uuid::new_v4().to_string(),
-            timestamp: Some(current_timestamp()),
-        };
+        let header = self
+            .header_builder
+            .message_id(Uuid::new_v4().to_string())
+            .timestamp(current_timestamp())
+            .build()?;
         Ok(Leave {
             header: Some(header),
         })
@@ -257,6 +263,7 @@ impl Default for LeaveBuilder {
 ///
 /// let chat = ChatMessageBuilder::new()
 ///     .username("r-zig")
+///     .with_default_room()
 ///     .content("Hello")
 ///     .build()
 ///     .unwrap();
@@ -269,27 +276,30 @@ impl Default for LeaveBuilder {
 /// assert_eq!(chat.content, "Hello");
 /// ```
 pub struct ChatMessageBuilder {
-    username: Option<String>,
-    room: Option<String>,
+    header_builder: HeaderBuilder,
     content: Option<String>,
 }
 
 impl ChatMessageBuilder {
     pub fn new() -> Self {
         Self {
-            username: None,
-            room: Some(DEFAULT_ROOM.to_string()),
+            header_builder: HeaderBuilder::new(),
             content: None,
         }
     }
 
     pub fn username(mut self, username: impl Into<String>) -> Self {
-        self.username = Some(username.into());
+        self.header_builder = self.header_builder.username(username.into());
         self
     }
 
     pub fn room(mut self, room: impl Into<String>) -> Self {
-        self.room = Some(room.into());
+        self.header_builder = self.header_builder.room(room.into());
+        self
+    }
+
+    pub fn with_default_room(mut self) -> Self {
+        self.header_builder = self.header_builder.with_default_room();
         self
     }
 
@@ -299,13 +309,13 @@ impl ChatMessageBuilder {
     }
 
     pub fn build(self) -> Result<ChatMessage, ErrorCode> {
+        let header = self
+            .header_builder
+            .message_id(Uuid::new_v4().to_string())
+            .timestamp(current_timestamp())
+            .build()?;
         Ok(ChatMessage {
-            header: Some(Header {
-                username: self.username.ok_or(ErrorCode::UsernameRequired)?,
-                room: self.room.ok_or(ErrorCode::RoomRequired)?,
-                message_id: Uuid::new_v4().to_string(),
-                timestamp: Some(current_timestamp()),
-            }),
+            header: Some(header),
             content: self.content.ok_or(ErrorCode::ContentRequired)?,
         })
     }
@@ -425,7 +435,11 @@ mod tests {
 
     #[test]
     fn leave_builder_default_room() {
-        let leave = LeaveBuilder::new().username("r-zig").build().unwrap();
+        let leave = LeaveBuilder::new()
+            .username("r-zig")
+            .with_default_room()
+            .build()
+            .unwrap();
         assert_eq!(leave.header.as_ref().unwrap().room, DEFAULT_ROOM);
     }
 
@@ -434,6 +448,7 @@ mod tests {
         let chat = ChatMessageBuilder::new()
             .username("r-zig")
             .content("Hello")
+            .with_default_room()
             .build()
             .unwrap();
         assert_eq!(chat.content, "Hello");
@@ -442,7 +457,10 @@ mod tests {
 
     #[test]
     fn chat_message_missing_content() {
-        let result = ChatMessageBuilder::new().username("r-zig").build();
+        let result = ChatMessageBuilder::new()
+            .username("r-zig")
+            .with_default_room()
+            .build();
         assert_eq!(result, Err(ErrorCode::ContentRequired));
     }
 }
