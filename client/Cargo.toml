@@ -5,3 +5,4 @@ edition = "2021"
 authors = ["Ron Zigelman <roniz.net@gmail.com>"]
 
 [dependencies]
+chat-contract = { version = "0.1.0", path = "../chat-contract" }

@@ -1,8 +1,0 @@
-[package]
-name = "server-cli"
-version = "0.1.0"
-edition = "2021"
-authors = ["Ron Zigelman <roniz.net@gmail.com>"]
-
-[dependencies]
-server = { path = "../server" }

@@ -2,7 +2,7 @@ use prost_types::Timestamp;
 use uuid::Uuid;
 
 use crate::{
-    chat::{ChatMessage, ErrorCode, Header, Join, Leave},
+    chat::{self, ChatMessage, Error, ErrorCode, Header, Join, Leave, MessageType},
     current_timestamp,
 };
 
@@ -327,6 +327,241 @@ impl Default for ChatMessageBuilder {
     }
 }
 
+/// Builder for [`ServerMessage`] message.
+///
+/// This builder allows you to create a `ServerMessage` by specifying either an error
+/// or a chat message, but not both. The `build()` method will enforce this constraint.
+///
+/// # Example (with chat message)
+/// ```
+/// use chat_contract::builders::{ServerMessageBuilder, ChatMessageBuilder};
+///
+/// let chat_message = ChatMessageBuilder::new()
+///     .username("r-zig")
+///     .content("Hello")
+///     .with_default_room()
+///     .build()
+///     .unwrap();
+///
+/// let server_message = ServerMessageBuilder::new()
+///     .chat_message(chat_message)
+///     .build()
+///     .unwrap();
+/// assert!(server_message.chat.is_some());
+/// assert!(server_message.error.is_none());
+/// ```
+///
+/// # Example (with error)
+/// ```
+/// use chat_contract::builders::{ServerMessageBuilder};
+/// use chat_contract::chat::{Error, ErrorCode};
+///
+/// let error = Error {
+///     message_id: "123".to_string(),
+///     related_message_id: "456".to_string(),
+///     r#type: 1,
+///     code: ErrorCode::UsernameRequired as i32,
+/// };
+///
+/// let server_message = ServerMessageBuilder::new()
+///     .error(error)
+///     .build()
+///     .unwrap();
+/// assert!(server_message.error.is_some());
+/// assert!(server_message.chat.is_none());
+/// ```
+pub struct ServerMessageBuilder {
+    error: Option<chat::Error>,
+    chat: Option<chat::ChatMessage>,
+}
+
+impl ServerMessageBuilder {
+    /// Creates a new `ServerMessageBuilder`.
+    pub fn new() -> Self {
+        Self {
+            error: None,
+            chat: None,
+        }
+    }
+
+    /// Builds an ServerMessage `Error` message from the original `Header`.
+    ///
+    /// # Arguments
+    /// - `header`: The `Header` from the original message that failed to proceed.
+    /// - `error_type`: The type of message that caused the error (e.g., `MessageType::Join`).
+    /// - `error_code`: The specific error code (e.g., `ErrorCode::UsernameAlreadyTaken`).
+    ///
+    /// # Returns
+    /// An `Error` message populated with the relevant fields.
+    pub fn error_from_header(
+        self,
+        header: &Header,
+        error_type: MessageType,
+        error_code: ErrorCode,
+    ) -> Self {
+        self.error(Error {
+            message_id: uuid::Uuid::new_v4().to_string(), // Generate a unique ID for the error message
+            related_message_id: header.message_id.clone(), // Use the original message ID
+            r#type: error_type as i32, // Convert `MessageType` to its integer representation
+            code: error_code as i32,   // Convert `ErrorCode` to its integer representation
+        })
+    }
+
+    /// Sets the error for the `ServerMessage`.
+    pub fn error(mut self, error: chat::Error) -> Self {
+        self.error = Some(error);
+        self
+    }
+
+    /// Sets the chat message for the `ServerMessage`.
+    pub fn chat_message(mut self, chat_message: chat::ChatMessage) -> Self {
+        self.chat = Some(chat_message);
+        self
+    }
+
+    /// Builds the `ServerMessage`.
+    ///
+    /// Returns an error if neither an error nor a chat message is set.
+    pub fn build(self) -> Result<chat::ServerMessage, &'static str> {
+        if self.error.is_some() && self.chat.is_some() {
+            return Err("ServerMessage cannot have both error and chat_message set");
+        }
+
+        if self.error.is_none() && self.chat.is_none() {
+            return Err("ServerMessage must have either error or chat_message set");
+        }
+
+        Ok(chat::ServerMessage {
+            error: self.error,
+            chat: self.chat,
+        })
+    }
+}
+
+impl Default for ServerMessageBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Builder for [`ClientMessage`] message.
+///
+/// This builder allows you to create a `ClientMessage` by specifying either a join,
+/// leave, or chat message payload. The `build()` method will enforce that at least
+/// one payload is set.
+///
+/// # Example (with join payload)
+/// ```
+/// use chat_contract::builders::ClientMessageBuilder;
+///
+/// let client_message = ClientMessageBuilder::new()
+///     .join("r-zig", Some("main"))
+///     .build()
+///     .unwrap();
+/// assert!(client_message.payload.is_some());
+/// ```
+///
+/// # Example (with chat payload)
+/// ```
+/// use chat_contract::builders::ClientMessageBuilder;
+///
+/// let client_message = ClientMessageBuilder::new()
+///     .chat("r-zig", "Hello", None)
+///     .build()
+///     .unwrap();
+/// assert!(client_message.payload.is_some());
+/// ```
+pub struct ClientMessageBuilder {
+    join_builder: Option<JoinBuilder>,
+    leave_builder: Option<LeaveBuilder>,
+    chat_message_builder: Option<ChatMessageBuilder>,
+}
+
+impl ClientMessageBuilder {
+    /// Creates a new `ClientMessageBuilder`.
+    pub fn new() -> Self {
+        Self {
+            join_builder: None,
+            leave_builder: None,
+            chat_message_builder: None,
+        }
+    }
+
+    /// Sets the `Join` payload using a `JoinBuilder`.
+    pub fn join(mut self, username: impl Into<String>, room: Option<&str>) -> Self {
+        let mut builder = JoinBuilder::new().username(username);
+        if let Some(room) = room {
+            builder = builder.room(room);
+        } else {
+            builder = builder.with_default_room();
+        }
+        self.join_builder = Some(builder);
+        self
+    }
+
+    /// Sets the `Leave` payload using a `LeaveBuilder`.
+    pub fn leave(mut self, username: impl Into<String>, room: Option<String>) -> Self {
+        let mut builder = LeaveBuilder::new().username(username);
+        if let Some(room) = room {
+            builder = builder.room(room);
+        } else {
+            builder = builder.with_default_room();
+        }
+        self.leave_builder = Some(builder);
+        self
+    }
+
+    /// Sets the `ChatMessage` payload using a `ChatMessageBuilder`.
+    pub fn chat(
+        mut self,
+        username: impl Into<String>,
+        content: impl Into<String>,
+        room: Option<&str>,
+    ) -> Self {
+        let mut builder = ChatMessageBuilder::new()
+            .username(username)
+            .content(content);
+        if let Some(room) = room {
+            builder = builder.room(room);
+        } else {
+            builder = builder.with_default_room();
+        }
+        self.chat_message_builder = Some(builder);
+        self
+    }
+
+    /// Builds the `ClientMessage`.
+    ///
+    /// Returns an error if no payload is set.
+    pub fn build(self) -> Result<chat::ClientMessage, &'static str> {
+        let payload = self
+            .join_builder
+            .map(|builder| chat::client_message::Payload::Join(builder.build().unwrap()))
+            .or_else(|| {
+                self.leave_builder
+                    .map(|builder| chat::client_message::Payload::Leave(builder.build().unwrap()))
+            })
+            .or_else(|| {
+                self.chat_message_builder
+                    .map(|builder| chat::client_message::Payload::Chat(builder.build().unwrap()))
+            });
+
+        if let Some(payload) = payload {
+            Ok(chat::ClientMessage {
+                payload: Some(payload),
+            })
+        } else {
+            Err("ClientMessage must have at least one payload set")
+        }
+    }
+}
+
+impl Default for ClientMessageBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::current_timestamp;
@@ -462,5 +697,147 @@ mod tests {
             .with_default_room()
             .build();
         assert_eq!(result, Err(ErrorCode::ContentRequired));
+    }
+
+    #[test]
+    fn server_message_builder_with_chat_message() {
+        let chat_message = ChatMessageBuilder::new()
+            .username("r-zig")
+            .content("Hello")
+            .with_default_room()
+            .build()
+            .unwrap();
+
+        let server_message = ServerMessageBuilder::new()
+            .chat_message(chat_message)
+            .build()
+            .unwrap();
+
+        assert!(server_message.chat.is_some());
+        assert!(server_message.error.is_none());
+    }
+
+    #[test]
+    fn server_message_builder_with_error() {
+        let error = chat::Error {
+            message_id: "123".to_string(),
+            related_message_id: "456".to_string(),
+            r#type: 1,
+            code: ErrorCode::UsernameRequired as i32,
+        };
+
+        let server_message = ServerMessageBuilder::new().error(error).build().unwrap();
+
+        assert!(server_message.error.is_some());
+        assert!(server_message.chat.is_none());
+    }
+
+    #[test]
+    fn server_message_builder_error_when_both_set() {
+        let chat_message = ChatMessageBuilder::new()
+            .username("r-zig")
+            .content("Hello")
+            .with_default_room()
+            .build()
+            .unwrap();
+
+        let error = chat::Error {
+            message_id: "123".to_string(),
+            related_message_id: "456".to_string(),
+            r#type: 1,
+            code: ErrorCode::UsernameRequired as i32,
+        };
+
+        let result = ServerMessageBuilder::new()
+            .chat_message(chat_message)
+            .error(error)
+            .build();
+
+        assert_eq!(
+            result,
+            Err("ServerMessage cannot have both error and chat_message set")
+        );
+    }
+
+    #[test]
+    fn server_message_builder_error_when_none_set() {
+        let result = ServerMessageBuilder::new().build();
+
+        assert_eq!(
+            result,
+            Err("ServerMessage must have either error or chat_message set")
+        );
+    }
+
+    #[test]
+    fn server_message_builder_error_from_header() {
+        // Create a mock header
+        let header = Header {
+            username: "test_user".to_string(),
+            room: "test_room".to_string(),
+            message_id: "original-message-id".to_string(),
+            timestamp: Some(current_timestamp()),
+        };
+
+        // Build an error message using `error_from_header`
+        let server_message = ServerMessageBuilder::new()
+            .error_from_header(&header, MessageType::Join, ErrorCode::UsernameAlreadyTaken)
+            .build()
+            .unwrap();
+
+        // Assert that the error is correctly populated
+        let error = server_message.error.unwrap();
+        assert_eq!(error.related_message_id, "original-message-id");
+        assert_eq!(error.r#type, MessageType::Join as i32);
+        assert_eq!(error.code, ErrorCode::UsernameAlreadyTaken as i32);
+        assert!(!error.message_id.is_empty()); // Ensure a unique message ID is generated
+    }
+
+    #[test]
+    fn build_client_message_with_join() {
+        let join_message = ClientMessageBuilder::new()
+            .join("test_user", Some("test_room"))
+            .build()
+            .unwrap();
+
+        assert!(matches!(
+            join_message.payload,
+            Some(chat::client_message::Payload::Join(_))
+        ));
+    }
+
+    #[test]
+    fn build_client_message_with_leave() {
+        let leave_message = ClientMessageBuilder::new()
+            .leave("test_user", None) // Defaults to the default room
+            .build()
+            .unwrap();
+
+        assert!(matches!(
+            leave_message.payload,
+            Some(chat::client_message::Payload::Leave(_))
+        ));
+    }
+
+    #[test]
+    fn build_client_message_with_chat() {
+        let chat_message = ClientMessageBuilder::new()
+            .chat("test_user", "Hello, world!", Some("test_room"))
+            .build()
+            .unwrap();
+
+        assert!(matches!(
+            chat_message.payload,
+            Some(chat::client_message::Payload::Chat(_))
+        ));
+    }
+
+    #[test]
+    fn build_client_message_without_payload() {
+        let result = ClientMessageBuilder::new().build();
+        assert_eq!(
+            result,
+            Err("ClientMessage must have at least one payload set")
+        );
     }
 }

@@ -3,7 +3,8 @@ pub mod chat {
     include!(concat!(env!("OUT_DIR"), "/chat.rs"));
 }
 
-use chat::Header;
+use chat::{ClientMessage, Header, ServerMessage};
+use prost::Message;
 pub use prost_types::Timestamp;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
@@ -45,6 +46,22 @@ pub fn validate_header(header: &Header) -> Result<(), &'static str> {
         return Err("Missing timestamp");
     }
     Ok(())
+}
+
+impl From<ServerMessage> for Vec<u8> {
+    fn from(value: ServerMessage) -> Self {
+        let mut buf = Vec::new();
+        value.encode(&mut buf).expect("Message encoding failed");
+        buf
+    }
+}
+
+impl From<ClientMessage> for Vec<u8> {
+    fn from(value: ClientMessage) -> Self {
+        let mut buf = Vec::new();
+        value.encode(&mut buf).expect("Message encoding failed");
+        buf
+    }
 }
 
 #[cfg(test)]

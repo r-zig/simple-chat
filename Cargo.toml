@@ -2,7 +2,6 @@
 resolver = "2"
 members = [
     "server",
-    "server-cli",
     "client",
     "client-cli",
     "chat-contract"
