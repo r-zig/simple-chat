@@ -5,9 +5,9 @@ edition = "2021"
 authors = ["Ron Zigelman <roniz.net@gmail.com>"]
 
 [dependencies]
-prost = "0.13.5"
-prost-types = "0.13.5"
+prost = "0.12"
+prost-types = "0.12"
 uuid = { version = "1.16.0", features = ["v4"] }
 
 [build-dependencies]
-prost-build = "0.13.5"
+prost-build = "0.12"
