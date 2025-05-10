@@ -10,12 +10,18 @@ use tokio::io::{self, AsyncBufReadExt, BufReader};
 
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
 };
 use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
-use chat_contract::{builders::ClientMessageBuilder, chat::ServerMessage};
+use chat_contract::{
+    builders::ClientMessageBuilder,
+    chat::{client_message::Payload, ClientMessage, ServerMessage},
+};
 
 #[derive(Parser, Debug)]
 #[clap(name = "client")]
@@ -52,25 +58,71 @@ async fn main() -> Result<()> {
     send_join(&options.name, send_stream.clone()).await?;
 
     // Create a channel for sending messages from the input handler to the sender
-    let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<u8>>(100);
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<ClientMessage>(100);
+
+    // Create a shutdown flag
+    let shutdown = Arc::new(AtomicBool::new(false));
+    let shutdown_clone = shutdown.clone();
+
+    // Handle Ctrl+C signal
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.unwrap();
+        info!("Received Ctrl+C, shutting down...");
+        shutdown_clone.store(true, Ordering::SeqCst);
+    });
 
     // Spawn a task to handle user input
     let user_name = options.name.clone();
-    let input_task = tokio::spawn(async move {
-        handle_user_input(&user_name, tx).await;
+    let input_task = tokio::spawn({
+        let shutdown = shutdown.clone();
+        async move {
+            handle_user_input(&user_name, tx, shutdown).await;
+        }
     });
 
     // Start listening for incoming messages
-    let read_task = tokio::spawn(async move {
-        read_logic(&mut recv_stream).await.unwrap();
+    let read_task = tokio::spawn({
+        let shutdown = shutdown.clone();
+        async move {
+            read_logic(&mut recv_stream, shutdown).await.unwrap();
+        }
     });
 
     // Spawn a task to send messages
-    let send_task = tokio::spawn(async move {
-        while let Some(message) = rx.recv().await {
-            if let Err(e) = send_stream.lock().await.write_all(&message).await {
-                error!("Failed to send message: {:?}", e);
-                break;
+    let send_task = tokio::spawn({
+        let shutdown = shutdown.clone();
+        async move {
+            let mut should_shutdown = false;
+            while let Some(message) = rx.recv().await {
+                if shutdown.load(Ordering::SeqCst) {
+                    break;
+                }
+                if let Some(payload) = message.payload.clone() {
+                    match payload {
+                        Payload::Leave(_) => {
+                            should_shutdown = true;
+                        }
+                        _ => {
+                            debug!("Other message sent");
+                        }
+                    }
+                }
+                match <ClientMessage as TryInto<Vec<u8>>>::try_into(message) {
+                    Ok(buf) => {
+                        if let Err(e) = send_stream.lock().await.write_all(&buf).await {
+                            error!("Failed to send message: {:?}", e);
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to encode message: {:?}", e);
+                    }
+                }
+
+                if should_shutdown {
+                    debug!("Leave message sent, shutting down...");
+                    shutdown.store(true, Ordering::SeqCst);
+                    break;
+                }
             }
         }
     });
@@ -85,9 +137,6 @@ async fn main() -> Result<()> {
         }
         _ = read_task => {
             info!("Read task completed");
-        }
-        _ = tokio::signal::ctrl_c() => {
-            info!("Received Ctrl+C, shutting down...");
         }
     }
 
@@ -108,7 +157,7 @@ fn create_client_endpoint() -> Result<Endpoint> {
     Ok(endpoint)
 }
 
-async fn read_logic(recv_stream: &mut RecvStream) -> Result<()> {
+async fn read_logic(recv_stream: &mut RecvStream, shutdown: Arc<AtomicBool>) -> Result<()> {
     println!("Waiting for messages...");
     // Read the server's response
     let reader = BufReader::new(recv_stream);
@@ -116,6 +165,9 @@ async fn read_logic(recv_stream: &mut RecvStream) -> Result<()> {
 
     // loop over the stream to handle multiple messages
     while let Some(response) = stream.next().await {
+        if shutdown.load(Ordering::SeqCst) {
+            break;
+        }
         match response {
             Ok(msg) => {
                 if let Some(e) = msg.error {
@@ -172,12 +224,19 @@ async fn read_logic(recv_stream: &mut RecvStream) -> Result<()> {
     Ok(())
 }
 
-async fn handle_user_input(user: &str, tx: tokio::sync::mpsc::Sender<Vec<u8>>) {
+async fn handle_user_input(
+    user: &str,
+    tx: tokio::sync::mpsc::Sender<ClientMessage>,
+    shutdown: Arc<AtomicBool>,
+) {
     let mut reader = BufReader::new(io::stdin()).lines();
 
     println!("Enter commands (e.g., 'send <MSG>' or 'leave'):");
 
     while let Ok(Some(line)) = reader.next_line().await {
+        if shutdown.load(Ordering::SeqCst) {
+            break;
+        }
         let trimmed = line.trim();
         if trimmed.is_empty() {
             continue;
@@ -204,11 +263,9 @@ async fn handle_user_input(user: &str, tx: tokio::sync::mpsc::Sender<Vec<u8>>) {
         };
 
         if let Ok(msg) = message {
-            if let Ok(buf) = msg.try_into() {
-                if tx.send(buf).await.is_err() {
-                    error!("Failed to send message to sender task");
-                    break;
-                }
+            if tx.send(msg).await.is_err() {
+                error!("Failed to send message to sender task");
+                break;
             }
         }
 
