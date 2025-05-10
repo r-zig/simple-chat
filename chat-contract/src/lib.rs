@@ -48,19 +48,21 @@ pub fn validate_header(header: &Header) -> Result<(), &'static str> {
     Ok(())
 }
 
-impl From<ServerMessage> for Vec<u8> {
-    fn from(value: ServerMessage) -> Self {
+impl TryFrom<ServerMessage> for Vec<u8> {
+    type Error = prost::EncodeError;
+    fn try_from(value: ServerMessage) -> Result<Self, Self::Error> {
         let mut buf = Vec::new();
-        value.encode(&mut buf).expect("Message encoding failed");
-        buf
+        value.encode_length_delimited(&mut buf)?;
+        Ok(buf)
     }
 }
 
-impl From<ClientMessage> for Vec<u8> {
-    fn from(value: ClientMessage) -> Self {
+impl TryFrom<ClientMessage> for Vec<u8> {
+    type Error = prost::EncodeError;
+    fn try_from(value: ClientMessage) -> Result<Self, Self::Error> {
         let mut buf = Vec::new();
-        value.encode(&mut buf).expect("Message encoding failed");
-        buf
+        value.encode_length_delimited(&mut buf)?;
+        Ok(buf)
     }
 }
 
