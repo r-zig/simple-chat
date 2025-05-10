@@ -1,3 +1,4 @@
+use std::time::Duration;
 use std::{error::Error, net::SocketAddr, sync::Arc};
 mod actors;
 mod messages;
@@ -10,7 +11,7 @@ use actix::{Actor, Addr};
 use chat_contract::chat;
 use rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer};
 
-use quinn::{Endpoint, ServerConfig, VarInt};
+use quinn::{Endpoint, IdleTimeout, ServerConfig, VarInt};
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, info_span};
 use tracing_futures::Instrument;
@@ -63,6 +64,12 @@ pub struct Opt {
 
     #[clap(long = "max-bidi-streams")]
     max_concurrent_bidi_streams: Option<u64>,
+
+    #[clap(long = "max_idle_timeout", default_value = "30")]
+    max_idle_timeout: Option<u64>,
+
+    #[clap(long = "keep_alive_interval", default_value = "10")]
+    keep_alive_interval: Option<u64>,
 }
 
 pub async fn run(options: Opt) -> Result<()> {
@@ -187,6 +194,14 @@ fn configure_server(
     if let Some(max_concurrent_bidi_streams) = option.max_concurrent_bidi_streams {
         transport_config
             .max_concurrent_bidi_streams(VarInt::from_u64(max_concurrent_bidi_streams)?);
+    }
+    if let Some(max_idle_timeout) = option.max_idle_timeout {
+        transport_config.max_idle_timeout(Some(IdleTimeout::try_from(Duration::from_secs(
+            max_idle_timeout,
+        ))?));
+    }
+    if let Some(keep_alive_interval) = option.keep_alive_interval {
+        transport_config.keep_alive_interval(Some(Duration::from_secs(keep_alive_interval)));
     }
 
     Ok((server_config, cert_der))
