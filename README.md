@@ -70,6 +70,9 @@ send a message to the server from the client. Make sure that niether the server
 or client exit with a failure. This action should be run anytime new code
 is pushed to a branch or landed on the main branch.
 
+### Demo
+![Demo](assets/example-server-clients.gif)
+
 ## Getting Started
 
 ### 1. Install Git Pre-Commit Hook
@@ -92,3 +95,13 @@ protoc --version
 Should output something like: libprotoc 3.21.12
 
 Note: Some components of this project might auto-generate code from .proto files during the build process. Ensure protoc is installed and accessible before building or running the project.
+
+### 3. Run Server
+```bash
+cargo run --bin server
+```
+
+### 4. Run Client
+```bash
+cargo run --bin client
+```
