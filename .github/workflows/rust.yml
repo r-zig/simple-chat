@@ -27,7 +27,7 @@ jobs:
     - name: Test Chat Client with Interactive Input
       run: |
         sleep 5 # Wait for the server to start
-        cargo run --bin chat-client -- --server-name localhost --name test-client
+        RUST_LOG=debug cargo run --bin chat-client -- --server-name localhost --name test-client
     - name: Ensure Client is Running
       run: pgrep -f chat-client
     - name: Run tests
