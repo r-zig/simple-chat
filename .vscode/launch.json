@@ -69,38 +69,24 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'client'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=client"
-                ],
-                "filter": {
-                    "name": "client",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug executable 'client-cli'",
+            "name": "Debug executable 'client'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=client-cli",
-                    "--package=client-cli"
+                    "--bin=chat-client",
+                    "--package=chat-client"
                 ],
                 "filter": {
-                    "name": "client-cli",
+                    "name": "chat-client",
                     "kind": "bin"
                 }
             },
-            "args": [],
+            "args": [
+                "--server-name",
+                "localhost",
+                "--name",
+                "test-client-debugger",
+            ],
             "cwd": "${workspaceFolder}"
         },
         {
