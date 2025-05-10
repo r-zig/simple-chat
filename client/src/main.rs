@@ -27,8 +27,8 @@ use chat_contract::{
 #[clap(name = "client")]
 pub struct Opt {
     /// Server address to connect to
-    #[clap(long = "server", default_value = "127.0.0.1:4433")]
-    server: SocketAddr,
+    #[clap(long = "server-addr")]
+    server_addr: SocketAddr,
 
     /// Server name for identification
     #[clap(long = "server-name")]
@@ -46,10 +46,10 @@ async fn main() -> Result<()> {
     // Create a QUIC client endpoint
     let endpoint = create_client_endpoint()?;
     let connection = endpoint
-        .connect(options.server, &options.server_name)
+        .connect(options.server_addr, &options.server_name)
         .unwrap()
         .await?;
-    info!("Connected to server at {}", options.server);
+    info!("Connected to server at {}", options.server_addr);
 
     let (send_stream, mut recv_stream) = connection.open_bi().await.unwrap();
     let send_stream = Arc::new(tokio::sync::Mutex::new(send_stream));
