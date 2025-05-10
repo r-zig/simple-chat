@@ -105,3 +105,12 @@ cargo run --bin server
 ```bash
 cargo run --bin client
 ```
+
+### 4. Run Tests
+```bash
+cargo run --bin server
+```
+In other terminal
+```bash
+cargo test
+```
