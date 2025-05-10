@@ -6,11 +6,12 @@ use futures::StreamExt;
 use protobuf_stream::protobuf_stream::{ProtobufStream, ProtobufStreamError};
 use quinn::{crypto::rustls::QuicClientConfig, ClientConfig, Endpoint};
 use rustls_pki_types::CertificateDer;
-use std::sync::Arc;
 use std::{
     error::Error,
     net::{IpAddr, Ipv4Addr, SocketAddr},
+    time::UNIX_EPOCH,
 };
+use std::{sync::Arc, time::SystemTime};
 use tokio::io::BufReader;
 
 const DEFAULT_SERVER_ADDRESS: &str = "127.0.0.1:4433";
@@ -159,4 +160,115 @@ async fn test_server_accepts_join() {
     }
     connection.close(0u32.into(), b"done");
     endpoint.wait_idle().await;
+}
+
+#[tokio::test]
+async fn test_join_broadcast() {
+    // Connect the first client
+    let (connection1, endpoint1) = connect_to_server()
+        .await
+        .expect("Failed to connect to server");
+    let (mut send_stream1, recv_stream1) = connection1.open_bi().await.unwrap();
+
+    // Connect the second client
+    let (connection2, endpoint2) = connect_to_server()
+        .await
+        .expect("Failed to connect to server");
+    let (mut send_stream2, recv_stream2) = connection2.open_bi().await.unwrap();
+
+    // Prepare receiving streams for both clients
+    let reader1 = BufReader::new(recv_stream1);
+    let mut stream1 = ProtobufStream::<_, ServerMessage>::new(reader1);
+
+    let reader2 = BufReader::new(recv_stream2);
+    let mut stream2 = ProtobufStream::<_, ServerMessage>::new(reader2);
+
+    // Generate unique usernames using the current timestamp
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_millis();
+    let username1 = format!("client1_{}", timestamp);
+    let username2 = format!("client2_{}", timestamp);
+
+    // First client sends a "Join" message
+    let client_message1 = ClientMessageBuilder::new()
+        .join(username1.clone(), None)
+        .build()
+        .unwrap();
+    let buf1: Vec<u8> = client_message1.try_into().unwrap();
+    send_stream1.write_all(&buf1).await.unwrap();
+    send_stream1.finish().unwrap();
+
+    // Second client sends a "Join" message
+    let client_message2 = ClientMessageBuilder::new()
+        .join(username2, None)
+        .build()
+        .unwrap();
+    let buf2: Vec<u8> = client_message2.try_into().unwrap();
+    send_stream2.write_all(&buf2).await.unwrap();
+    send_stream2.finish().unwrap();
+
+    // First client should not receive the broadcast
+    tokio::select! {
+        msg = stream1.next() => {
+            match msg {
+                Some(Ok(response)) => {
+                    if let Some(chat) = response.chat {
+                        assert_ne!(chat.content, format!("User {} has joined the room", username1));
+                    }
+                }
+                Some(Err(e)) => {
+                    println!("First client received an error: {:?}", e);
+                    panic!("Unexpected error for first client");
+                }
+                None => {
+                    println!("First client stream ended unexpectedly");
+                    panic!("First client stream ended unexpectedly");
+                }
+            }
+        }
+        _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {
+            // Timeout, as expected
+            println!("First client did not receive any broadcast (as expected)");
+        }
+    }
+
+    // Second client should receive the broadcast
+    tokio::select! {
+        msg = stream2.next() => {
+            match msg {
+                Some(Ok(response)) => {
+                    if let Some(chat) = response.chat {
+                        assert_eq!(
+                            chat.content,
+                            format!("User {} has joined the room", username1),
+                            "Second client received an unexpected broadcast message"
+                        );
+                        println!("Second client received the expected broadcast: {:?}", chat.content);
+                    } else {
+                        panic!("Second client received a message without chat content");
+                    }
+                }
+                Some(Err(e)) => {
+                    println!("Second client received an error: {:?}", e);
+                    panic!("Unexpected error for second client");
+                }
+                None => {
+                    println!("Second client stream ended unexpectedly");
+                    panic!("Second client stream ended unexpectedly");
+                }
+            }
+        }
+        _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {
+            panic!("Second client did not receive the broadcast within the timeout");
+        }
+    }
+
+    // Close connections
+    connection1.close(0u32.into(), b"done");
+    endpoint1.wait_idle().await;
+
+    connection2.close(0u32.into(), b"done");
+    endpoint2.wait_idle().await;
 }
