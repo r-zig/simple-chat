@@ -21,10 +21,10 @@ jobs:
     - name: Build
       run: cargo build --verbose
     - name: Start Chat Server
-      run: RUST_LOG=debug cargo run --bin server &
+      run: RUST_LOG=debug cargo run --bin server -- --listen 0.0.0.0:4433 &
       env:
         RUST_LOG: debug
-    - name: Test Chat Client
+    - name: Test Chat Client with Interactive Input
       run: |
         sleep 5 # Wait for the server to start
         cargo run --bin chat-client -- --server-name localhost --name test-client
