@@ -103,7 +103,7 @@ cargo run --bin server
 
 ### 4. Run Client
 ```bash
-cargo run --bin client
+cargo run --bin chat-client -- --server-addr 127.0.0.1:4433 --server-name localhost --name test-client
 ```
 
 ### 4. Run Tests
