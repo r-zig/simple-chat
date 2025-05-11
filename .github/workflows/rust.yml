@@ -29,7 +29,7 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
     - name: Test Chat Client with Interactive Input
-      run: cargo run --bin chat-client -- --server-addr 127.0.0.1:4433 --server-name localhost --name test-client &
+      run: cargo run --bin chat-client -- --server-addr 127.0.0.1:4433 --server-name localhost --name test-client
       env:
         RUST_LOG: debug
     - name: Check Logs for Specific String

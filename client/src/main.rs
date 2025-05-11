@@ -110,6 +110,7 @@ async fn main() -> Result<()> {
                 if let Some(payload) = message.payload.clone() {
                     match payload {
                         Payload::Leave(_) => {
+                            debug!("Leave message sent, will start shutdown");
                             should_shutdown = true;
                         }
                         _ => {
@@ -287,6 +288,7 @@ async fn handle_user_input(
         }
         println!("Enter commands (e.g., 'send <MSG>' or 'leave'):");
     }
+    debug!("User input task completed");
 }
 
 async fn send_join(name: &str, send_stream: Arc<Mutex<SendStream>>) -> Result<()> {
