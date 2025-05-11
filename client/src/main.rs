@@ -7,6 +7,7 @@ use quinn::{
     RecvStream, SendStream,
 };
 use tokio::io::{self, AsyncBufReadExt, BufReader};
+use tracing_subscriber::{fmt, layer::SubscriberExt, EnvFilter, Registry};
 
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -41,10 +42,19 @@ pub struct Opt {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let app_name = concat!(env!("CARGO_PKG_NAME"), "-", env!("CARGO_PKG_VERSION")).to_string();
+    let subscriber = Registry::default()
+        .with(EnvFilter::from_default_env())
+        .with(fmt::layer());
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+    println!("Starting {}", app_name);
+    println!("Created by: {}", env!("CARGO_PKG_AUTHORS"));
+
     let options = Opt::parse();
 
     // Create a QUIC client endpoint
     let endpoint = create_client_endpoint()?;
+    info!("Connecting to server at {}", options.server_addr);
     let connection = endpoint
         .connect(options.server_addr, &options.server_name)
         .unwrap()

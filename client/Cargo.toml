@@ -16,3 +16,4 @@ rustls = { version = "0.23.5", default-features = false, features = ["std"] }
 rustls-pki-types = "1.7"
 tokio = { version = "1.45.0", features = ["rt-multi-thread", "macros", "time" ,"signal", "io-std"] }
 tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["registry", "env-filter"] }
