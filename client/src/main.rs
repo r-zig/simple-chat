@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
         .connect(options.server_addr, &options.server_name)
         .unwrap()
         .await?;
-    info!("Connected to server at {}", options.server_addr);
+    println!("Connected to server at {}", options.server_addr);
 
     let (send_stream, mut recv_stream) = connection.open_bi().await.unwrap();
     let send_stream = Arc::new(tokio::sync::Mutex::new(send_stream));
@@ -292,7 +292,7 @@ async fn send_join(name: &str, send_stream: Arc<Mutex<SendStream>>) -> Result<()
         Ok(_) => debug!("Message sent successfully"),
         Err(e) => panic!("Unexpected error: {:?}", e),
     }
-    info!("Sent join message as {}", name);
+    println!("Sent join message as {}", name);
     Ok(())
 }
 
