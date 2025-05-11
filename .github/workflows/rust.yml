@@ -21,16 +21,16 @@ jobs:
     - name: Build
       run: cargo build --verbose
     - name: Start Chat Server
-      run: RUST_LOG=debug cargo run --bin server -- --listen 0.0.0.0:4433 &
+      run: cargo run --bin server -- --listen 0.0.0.0:4433 &
       env:
         RUST_LOG: debug
+    - name: wait server to start
+      run: sleep 5
     - name: Run tests
-      run: |
-        sleep 5 # Wait for the server to start
-        cargo test --verbose
+      run: cargo test --verbose
     - name: Test Chat Client with Interactive Input
       run: |
-        RUST_LOG=debug cargo run --bin chat-client -- --server-name localhost --name test-client
+        RUST_LOG=debug cargo run --bin chat-client -- --server-addr 127.0.0.1:4433 --server-name localhost --name test-client
     - name: Ensure Client is Running
       run: pgrep -f chat-client
     - name: Ensure Server is Running
