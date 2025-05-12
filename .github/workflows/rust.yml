@@ -21,7 +21,15 @@ jobs:
     - name: Build
       run: cargo build --verbose
     - name: Start Chat Server
-      run: cargo run --bin server -- --listen 0.0.0.0:4433 > server.log &
+      run: |
+        cargo run --bin server -- --listen 0.0.0.0:4433 > server.log &
+        SERVER_PID=$!
+        sleep 5
+        wait $SERVER_PID
+        if [ $? -ne 0 ]; then
+          echo "Server exited with a failure."
+          exit 1
+        fi
       env:
         RUST_LOG: debug
     - name: wait server to start
@@ -29,16 +37,17 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
     - name: Test Chat Client with Interactive Input
-      run: cargo run --bin chat-client -- --server-addr 127.0.0.1:4433 --server-name localhost --name test-client
+      run: |
+        cargo run --bin chat-client -- --server-addr 127.0.0.1:4433 --server-name localhost --name test-client
+        if [ $? -ne 0 ]; then
+          echo "Client exited with a failure."
+          exit 1
+        fi
       env:
         RUST_LOG: debug
     - name: Check Logs for Specific String
       run: |
         if ! grep "User test-client joined" server.log; then
-          echo "String not found in logs. Halting workflow."
+          echo "String not found in logs. No evidence to client messages to the server. Halting workflow."
           exit 1
         fi
-    - name: Ensure Client is Running
-      run: pgrep -f chat-client
-    - name: Ensure Server is Running
-      run: pgrep -f chat-server
