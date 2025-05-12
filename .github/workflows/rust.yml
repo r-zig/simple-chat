@@ -25,9 +25,8 @@ jobs:
         cargo run --bin server -- --listen 0.0.0.0:4433 > server.log &
         SERVER_PID=$!
         sleep 5
-        wait $SERVER_PID
-        if [ $? -ne 0 ]; then
-          echo "Server exited with a failure."
+        if ! ps -p $SERVER_PID > /dev/null; then
+          echo "Server failed to start."
           exit 1
         fi
       env:
